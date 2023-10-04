@@ -69,7 +69,7 @@ io2.on("connection", (socket) => {
     // Set up an interval to fetch and emit data every second
     interval = setInterval(async () => {
       try {
-        const url1 = `http://nikhilm.gq/bettingapi/score_v1.php?Action=all_event_score&match_id=${matchId}`;
+        const url1 = `https://nikhilm.xyz/bettingapi/score_v1.php?Action=all_event_score&match_id=${matchId}`;
         const response1 = await axios.post(
           "http://35.154.231.183:8080/putapi",
           {
