@@ -58,18 +58,104 @@ httpServer2.listen(8091, async (err) => {
 });
 
 
+io2.on('connection', (socket) => {
+  console.log('Client connected');
 
+  let cricketScoreInterval;
+  let generalScoreInterval;
+  let oddsInterval;
+  let sessionDataInterval;
 
-io2.on("connection", (socket) => {
-  console.log("Client connected1");
-  let interval;
-  // Listen for the "startFetching" event from the client
-  socket.on("startFetchingScore", (matchId) => {
-    console.log(`Client wants to fetch data for EventID: ${matchId}`);
-    // Set up an interval to fetch and emit data every second
-    interval = setInterval(async () => {
+  // Listen for the "startFetchingCricketScore" event from the client
+  socket.on('startFetchingCricketScore', (matchId) => {
+    console.log(`Client wants to fetch cricket score for MatchID: ${matchId}`);
+    // Set up an interval to fetch and emit cricket score data every 3 seconds
+    cricketScoreInterval = setInterval(async () => {
       try {
-        const url1 = `https://nikhilm.xyz/bettingapi/score_v1.php?Action=all_event_score&match_id=${matchId}`;
+        const url = `https://nikhilm.xyz/bettingapi/score_v1.php?Action=score&match_id=${matchId}`;
+        const response = await axios.post('http://35.154.231.183:8080/putapi', { url });
+        
+        if (!response.data.res) {
+          socket.emit('cricketScoreData', []); // Send an empty array to indicate no data
+          clearInterval(cricketScoreInterval);
+          return;
+        }
+
+        // Emit the fetched cricket score data to the client
+        socket.emit('cricketScoreData', response.data.res || []);
+      } catch (error) {
+        console.error('Error fetching cricket score data:', error);
+      }
+    }, 3000);
+  });
+
+  // Listen for the "startFetchingScore" event from the client
+  socket.on('startFetchingScore', (matchId) => {
+    console.log(`Client wants to fetch general score for MatchID: ${matchId}`);
+    // Set up an interval to fetch and emit general score data every 3 seconds
+    generalScoreInterval = setInterval(async () => {
+      try {
+        const url = `https://nikhilm.xyz/bettingapi/score_v1.php?Action=all_event_score&match_id=${matchId}`;
+        const response = await axios.post('http://35.154.231.183:8080/putapi', { url });
+
+        if (!response.data.res) {
+          socket.emit('scoreData', []); // Send an empty array to indicate no data
+          clearInterval(generalScoreInterval);
+          return;
+        }
+
+        // Emit the fetched general score data to the client
+        socket.emit('scoreData', response.data.res || []);
+      } catch (error) {
+        console.error('Error fetching general score data:', error);
+      }
+    }, 3000);
+  });
+
+
+  socket.on('startFetchingSession', (matchId) => {
+    console.log(`Client wants to fetch general score for MatchID: ${matchId}`);
+    // Set up an interval to fetch and emit general score data every 3 seconds
+    sessionDataInterval = setInterval(async () => {
+      try {
+        const url = `https://nikhilm.xyz/bettingapi/match_odds_v1.php?Action=listMarketBookSession&match_id=${matchId}`;
+        const response = await axios.post('http://35.154.231.183:8080/putapi', { url });
+
+        if (!response.data.res) {
+          socket.emit('sessionData', []); // Send an empty array to indicate no data
+          clearInterval(sessionDataInterval);
+          return;
+        }
+
+        // Emit the fetched general score data to the client
+        socket.emit('sessionData', response.data.res || []);
+      } catch (error) {
+        console.error('Error fetching session data:', error);
+      }
+    }, 3000);
+  });
+
+
+
+  // Listen for the "startFetching" event from the client
+  socket.on("startFetching", (eventID) => {
+    console.log(`Client wants to fetch data for EventID: ${eventID}`);
+    // Set up an interval to fetch and emit data every second
+    oddsInterval = setInterval(async () => {
+      try {
+        const url = `https://nikhilm.xyz/bettingapi/match_odds_v1.php?Action=listMarketTypes&EventID=${eventID}`;
+        const response = await axios.post("http://35.154.231.183:8080/putapi", {
+          url,
+        });
+        const marketId = response?.data?.res[0]?.marketId;
+        
+        if (!marketId) {
+          socket.emit("oddsData", []); // Send an empty array to indicate no data
+          clearInterval(oddsInterval);
+          return;
+        }
+
+        const url1 = `https://nikhilm.xyz/bettingapi/match_odds_v1.php?Action=listMarketBookOdds&MarketID=${marketId}`;
         const response1 = await axios.post(
           "http://35.154.231.183:8080/putapi",
           {
@@ -77,34 +163,53 @@ io2.on("connection", (socket) => {
           }
         );
 
-        // console.log(response1.data.res);
-        if (!response1) {
-          socket.emit("scoreData", []); // Send an empty array to indicate no data
-          clearInterval(interval);
-          return;
-        }
         // Emit the fetched data to the client
-        socket.emit("scoreData", response1.data.res || []);
+        socket.emit("oddsData", response1.data.res || []);
       } catch (error) {
-        console.error("Error fetching bookmaker data:", error);
+        console.error("Error fetching data:", error);
       }
-    }, 3000);
+    }, 1800);
+
   });
 
   // Listen for the "stopFetching" event from the client
-  socket.on("stopFetchingScore", () => {
-    console.log("Client requested to stop fetching bookmaker data");
-    // Clear the interval when the client disconnects or requests to stop
-    clearInterval(interval);
+
+
+  // Listen for the "stopFetching" event from the client for both cricket score and general score
+  socket.on('stopFetching', () => {
+    console.log('Client requested to stop fetching data');
+    // Clear the intervals when the client disconnects or requests to stop
+    clearInterval(cricketScoreInterval);
+    clearInterval(generalScoreInterval);
+    clearInterval(oddsInterval);
+    clearInterval(sessionDataInterval);
   });
 
   // Handle disconnection
-  socket.on("disconnect", () => {
-    console.log("Client disconnected1");
-    // Clear the interval when the client disconnects
-    clearInterval(interval);
+  socket.on('disconnect', () => {
+    console.log('Client disconnected');
+    // Clear the intervals when the client disconnects
+    clearInterval(cricketScoreInterval);
+    clearInterval(generalScoreInterval);
+    clearInterval(oddsInterval)
+    clearInterval(sessionDataInterval);
   });
 });
+
+
+
+// io.on("connection", (socket) => {
+//   console.log("Client connected");
+
+
+
+//   // Handle disconnection
+//   socket.on("disconnect", () => {
+//     console.log("Client disconnected");
+//     // Clear the interval when the client disconnects
+//     clearInterval(interval);
+//   });
+// });
 
 
 
